@@ -1,11 +1,10 @@
 import { useState, useEffect } from "react";
-import jsPDF from "jspdf";
 import { Container, Paper, Typography } from "@mui/material";
 import CalculatorForm from "./components/CalculatorForm";
 import ResultsDisplay from "./components/ResultDisplay";
 import {calculatePower} from "./components/CalculatePower";
-import {getDistanceFromMapbox} from "./components/ElevationAPI";
-import {getElevationGainFromMapbox} from "./components/ElevationAPI";
+import {getElevationGainFromGoogle } from "./components/ElevationAPI";
+import {getDistanceFromGoogleRoutes, getDistanceFromGoogleProxy} from "./components/ElevationAPI";
 
 export default function App() {
     const [bodyMass, setBodyMass] = useState(0);
@@ -21,7 +20,7 @@ export default function App() {
 
     useEffect(() => {
         console.log("VITE VARIABLEN:", import.meta.env);
-        console.log("MAPBOX TOKEN TEST:", import.meta.env.VITE_MAPBOX_TOKEN);
+        console.log("GOOGLE ELEVATION API KEY:", import.meta.env.GOOGLE_ELEVATION_API_KEY);
     }, []);
 
     const downsampleCoords = (coords: [number, number][], maxPoints = 99): [number, number][] => {
@@ -74,7 +73,7 @@ export default function App() {
             }
         }
 
-        const getDistance = (lat1: number, lon1: number, lat2: number, lon2: number): number => {
+        /*const getDistance = (lat1: number, lon1: number, lat2: number, lon2: number): number => {
             const R = 6371000;
             const toRad = (deg: number) => (deg * Math.PI) / 180;
             const dLat = toRad(lat2 - lat1);
@@ -82,7 +81,7 @@ export default function App() {
             const a = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
             const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
             return R * c;
-        };
+        };*/
 
         const intervalData = (powerSeries: TrackPoint[], durationMin: number) => {
             const msWindow = durationMin * 60 * 1000;
@@ -110,7 +109,7 @@ export default function App() {
             return { avgPower: bestAvg, startIdx: bestStartIdx, endIdx: bestEndIdx };
         };
 
-        const calculateIntervalDistance = (
+        /*const calculateIntervalDistance = (
             points: TrackPoint[],
             startIdx: number,
             endIdx: number
@@ -142,7 +141,7 @@ export default function App() {
             }
 
             return elevationGain;
-        }
+        }*/
 
         const safeGradientRadians = (elevationGain: number, distance: number): number => {
             const safeDistance = distance !== 0 ? distance : 0.01;  // ensure never zero
@@ -158,8 +157,6 @@ export default function App() {
             return Math.floor(elevationGain / 2) + (startpoint[startIdx].altitude ?? 0);
         }
 
-
-
         const interval5 = intervalData(powerSeries, 5);
         const interval20 = intervalData(powerSeries, 20);
 
@@ -174,18 +171,21 @@ export default function App() {
             .filter((p) => p.lat !== undefined && p.lon !== undefined)
             .map((p) => [p.lon!, p.lat!] as [number, number]);
 
-        const coords5 = downsampleCoords(coords5Raw);
+        const coords5 = downsampleCoords(coords5Raw, 200);
         console.log(" Coords 5: " + coords5);
         const coords20 = downsampleCoords(coords20Raw);
         console.log(" Coords 20: " + coords20);
 
+        console.log("Raw 5min:", coords5Raw.length);
+        console.log("Downsampled 5min:", coords5.length);
 
-        const { distance: distance5 } = await getDistanceFromMapbox(coords5);
-        const { distance: distance20 } = await getDistanceFromMapbox(coords20);
 
-        const elevationGain5 = await getElevationGainFromMapbox(coords5);
+        const distance5 = await getDistanceFromGoogleProxy(coords5);
+        const distance20 = await getDistanceFromGoogleProxy(coords20);
+
+        const elevationGain5 = await getElevationGainFromGoogle(coords5);
         console.log(" elevationGain5: " + elevationGain5);
-        const elevationGain20 = await getElevationGainFromMapbox(coords20);
+        const elevationGain20 = await getElevationGainFromGoogle(coords20);
         console.log(" elevationGain20: " + elevationGain20);
         const alphaDegrees5 = safeGradientRadians(elevationGain5, distance5) * (180 / Math.PI);
         const alphaDegrees20 = safeGradientRadians(elevationGain20, distance20) * (180 / Math.PI);
