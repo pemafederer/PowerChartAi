@@ -1,0 +1,32 @@
+{
+  "name": "powerchartai",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://gitlab.ost.ch/pema.federer/PowerChartAI.git"
+  },
+  "private": true,
+  "dependencies": {
+    "@emotion/react": "^11.14.0",
+    "@emotion/styled": "^11.14.0",
+    "@mui/material": "^6.4.8",
+    "@vitejs/plugin-react": "^4.3.4",
+    "jspdf": "^3.0.1",
+    "react-dom": "^19.0.0"
+  },
+  "devDependencies": {
+    "@types/geojson": "^7946.0.16",
+    "@types/node": "^22.13.14",
+    "@types/react-dom": "^19.0.4",
+    "typescript": "^5.8.2",
+    "vite": "^6.2.3"
+  }
+}
