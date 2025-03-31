@@ -1,27 +1,57 @@
-import { useState, useEffect } from "react";
-import { Container, Paper, Typography } from "@mui/material";
+
+import React, { useState , useEffect} from "react";
+import {Box, Button, Container, Grid, Paper, Typography} from "@mui/material";
 import CalculatorForm from "./components/CalculatorForm";
 import ResultsDisplay from "./components/ResultDisplay";
 import {calculatePower} from "./components/CalculatePower";
 import {getElevationGainFromGoogle } from "./components/ElevationAPI";
-import {getDistanceFromGoogleRoutes, getDistanceFromGoogleProxy} from "./components/ElevationAPI";
+import { getDistanceFromGoogleProxy} from "./components/ElevationAPI";
+import {ZoneTable} from "./components/PowerZones";
+import AuthForm from "./components/Authform";
+import {supabase} from "./components/SupabaseClient";
+import {Session} from '@supabase/supabase-js';
 
 export default function App() {
-    const [bodyMass, setBodyMass] = useState(0);
-    const [bikeMass, setBikeMass] = useState(0);
-    const [temperature, setTemperature] = useState(0);
-    const [bodyHeight, setBodyHeight] = useState(0);
+    const [bodyMass, setBodyMass] = useState(67.5);
+    const [bikeMass, setBikeMass] = useState(12);
+    const [temperature, setTemperature] = useState(1);
+    const [bodyHeight, setBodyHeight] = useState(182);
 
     const [cr, setCr] = useState(0.007);
     const [measured5, setMeasured5] = useState<number | null>(null);
     const [measured20, setMeasured20] = useState<number | null>(null);
     const [estimated5, setEstimated5] = useState<number | null>(null);
     const [estimated20, setEstimated20] = useState<number | null>(null);
+    const [ftp, setFtp] = useState<number | null>(null);
+    const [vo2max, setVo2max] = useState<number | null>(null);
+
+    const [session, setSession] = useState<Session | null>(null);
+
+    const handleLogout = async () => {
+        await supabase.auth.signOut();
+        setSession(null);
+    }
 
     useEffect(() => {
-        console.log("VITE VARIABLEN:", import.meta.env);
-        console.log("GOOGLE ELEVATION API KEY:", import.meta.env.GOOGLE_ELEVATION_API_KEY);
+        const getSession = async () => {
+            const { data: { session } } = await supabase.auth.getSession();
+            setSession(session);
+        };
+
+        getSession();
+
+        const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
+            setSession(session);
+        });
+
+        return () => {
+            listener.subscription.unsubscribe();
+        };
     }, []);
+
+    if (!session) {
+        return <AuthForm />;
+    }
 
     const downsampleCoords = (coords: [number, number][], maxPoints = 99): [number, number][] => {
         if (coords.length <= maxPoints) return coords;
@@ -197,37 +227,79 @@ export default function App() {
         setEstimated5(est5.Leistung);
         setMeasured20(interval20.avgPower);
         setEstimated20(est20.Leistung);
-
-
-
-
+        setFtp(0.95 * est20.Leistung);
+        setVo2max(((est5.Leistung / bodyMass) * 10.8) / 0.85);
 
 
     };
 
     return (
-        <Container maxWidth="sm" style={{ padding: "2rem 0" }}>
-            <Paper elevation={3} style={{ padding: "2rem" }}>
-                <Typography variant="h4" gutterBottom>
-                    PowerChartAI
-                </Typography>
-                <CalculatorForm
-                    bodyMass={bodyMass}
-                    bikeMass={bikeMass}
-                    cr={cr}
-                    alpha={0}
-                    temperature={temperature}
-                    bodyHeight={bodyHeight}
-                    onTemperatureChange={setTemperature}
-                    onBodyMassChange={setBodyMass}
-                    onBikeMassChange={setBikeMass}
-                    onBodyHeightChange={setBodyHeight}
-                    onCrChange={setCr}
-                    onAlphaChange={() => {}}
-                    onFileUpload={handleTcxUpload}
-                    onExport={() => {}}
-                />
-                <ResultsDisplay measured5={measured5} measured20={measured20} estimated5={estimated5} estimated20={estimated20} bodyMass={bodyMass} />
+        <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
+            <Paper sx={{ p: 3, mb: 2 }}>
+                <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
+                    <Typography variant="h4">PowerChartAI</Typography>
+                    <Button
+                        variant="outlined"
+                        size="small"
+                        onClick={handleLogout}
+                        sx={{
+                            textTransform: 'none',
+                            borderColor: '#ccc',
+                            color: '#555',
+                            '&:hover': {
+                                borderColor: '#888',
+                                backgroundColor: '#f5f5f5',
+                            },
+                        }}
+                    >
+                        Logout
+                    </Button>
+                </Box>
+
+                <Grid container spacing={4}>
+                    <Grid item xs={12} md={6}>
+                        <Typography variant="h6" gutterBottom>Eingabe</Typography>
+                        <CalculatorForm
+                            bodyMass={bodyMass}
+                            bikeMass={bikeMass}
+                            cr={cr}
+                            alpha={0}
+                            temperature={temperature}
+                            bodyHeight={bodyHeight}
+                            onTemperatureChange={setTemperature}
+                            onBodyMassChange={setBodyMass}
+                            onBikeMassChange={setBikeMass}
+                            onBodyHeightChange={setBodyHeight}
+                            onCrChange={setCr}
+                            onAlphaChange={() => {}}
+                            onFileUpload={handleTcxUpload}
+                            onExport={() => {}}
+                        />
+                    </Grid>
+
+                    <Grid item xs={12} md={6}>
+                        <Typography variant="h6" gutterBottom>Auswertung</Typography>
+                        <ResultsDisplay
+                            measured5={measured5}
+                            measured20={measured20}
+                            estimated5={estimated5}
+                            estimated20={estimated20}
+                            bodyMass={bodyMass}
+                        />
+                        {vo2max !== null && (
+                            <Typography variant="body1">
+                                Geschätzter VO₂max: {vo2max.toFixed(1)} ml/min/kg
+                            </Typography>
+                        )}
+
+
+                        {ftp !== null && (
+                            <Box mt={4}>
+                                <ZoneTable ftp={ftp} />
+                            </Box>
+                        )}
+                    </Grid>
+                </Grid>
             </Paper>
         </Container>
     );
