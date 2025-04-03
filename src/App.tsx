@@ -1,15 +1,18 @@
 
 import React, { useState , useEffect} from "react";
-import {Box, Button, Container, Grid, Paper, Typography} from "@mui/material";
+import {AppBar, Box, Button, Container, Grid, Paper, Toolbar, Typography} from "@mui/material";
 import CalculatorForm from "./components/CalculatorForm";
 import ResultsDisplay from "./components/ResultDisplay";
 import {calculatePower} from "./components/CalculatePower";
 import {getElevationGainFromGoogle } from "./components/ElevationAPI";
 import { getDistanceFromGoogleProxy} from "./components/ElevationAPI";
+import {PowerComparisonChart} from "./components/PowerComparisonChart";
+import {PowerLevelText} from "./components/PowerLevelText";
 import {ZoneTable} from "./components/PowerZones";
 import AuthForm from "./components/Authform";
 import {supabase} from "./components/SupabaseClient";
 import {Session} from '@supabase/supabase-js';
+
 
 export default function App() {
     const [bodyMass, setBodyMass] = useState(67.5);
@@ -23,6 +26,7 @@ export default function App() {
     const [estimated5, setEstimated5] = useState<number | null>(null);
     const [estimated20, setEstimated20] = useState<number | null>(null);
     const [ftp, setFtp] = useState<number | null>(null);
+    const [ftpWkg, setFtpWkg] = useState<number | null>(null);
     const [vo2max, setVo2max] = useState<number | null>(null);
 
     const [session, setSession] = useState<Session | null>(null);
@@ -31,6 +35,33 @@ export default function App() {
         await supabase.auth.signOut();
         setSession(null);
     }
+    const handleSavePerformance = async () => {
+        if (!session || !ftp || !ftpWkg || !vo2max || !estimated5) {
+            alert("Bitte lade erst eine Datei hoch.");
+            return;
+        }
+
+        const { error } = await supabase.from("performance_logs").insert([
+            {
+                user_id: session.user.id,
+
+                ftp: ftp,
+                ftp_wkg: ftpWkg,
+                vo2max: vo2max,
+                power_5min: estimated5,
+                body_mass: bodyMass,
+            },
+        ]);
+
+        if (error) {
+            console.error("Fehler beim Speichern:", error.message);
+            alert("Fehler beim Speichern der Leistung.");
+        } else {
+            alert("Leistung erfolgreich gespeichert ✅");
+        }
+    };
+
+
 
     useEffect(() => {
         const getSession = async () => {
@@ -102,17 +133,6 @@ export default function App() {
                 });
             }
         }
-
-        /*const getDistance = (lat1: number, lon1: number, lat2: number, lon2: number): number => {
-            const R = 6371000;
-            const toRad = (deg: number) => (deg * Math.PI) / 180;
-            const dLat = toRad(lat2 - lat1);
-            const dLon = toRad(lon2 - lon1);
-            const a = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
-            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-            return R * c;
-        };*/
-
         const intervalData = (powerSeries: TrackPoint[], durationMin: number) => {
             const msWindow = durationMin * 60 * 1000;
             let bestAvg = 0,
@@ -138,40 +158,6 @@ export default function App() {
             }
             return { avgPower: bestAvg, startIdx: bestStartIdx, endIdx: bestEndIdx };
         };
-
-        /*const calculateIntervalDistance = (
-            points: TrackPoint[],
-            startIdx: number,
-            endIdx: number
-        ): number => {
-            if (points[startIdx].distance !== undefined && points[endIdx].distance !== undefined) {
-                return points[endIdx].distance! - points[startIdx].distance!;
-            } else {
-                // Fallback
-                let dist = 0;
-                for (let i = startIdx + 1; i <= endIdx; i++) {
-                    const a = points[i - 1], b = points[i];
-                    if (a.lat && a.lon && b.lat && b.lon)
-                        dist += getDistance(a.lat, a.lon, b.lat, b.lon);
-                }
-                return dist;
-            }
-        };
-        function calculateElevationGain(points: TrackPoint[], startIdx: number, endIdx: number): number {
-            let elevationGain = 0;
-
-            for (let i = startIdx + 1; i <= endIdx; i++) {
-                const prevAlt = points[i - 1].altitude;
-                const currAlt = points[i].altitude;
-
-                if (prevAlt !== undefined && currAlt !== undefined) {
-                    const diff = currAlt - prevAlt;
-                    if (diff > 0) elevationGain += diff; // only add positive differences
-                }
-            }
-
-            return elevationGain;
-        }*/
 
         const safeGradientRadians = (elevationGain: number, distance: number): number => {
             const safeDistance = distance !== 0 ? distance : 0.01;  // ensure never zero
@@ -230,34 +216,41 @@ export default function App() {
         setFtp(0.95 * est20.Leistung);
         setVo2max(((est5.Leistung / bodyMass) * 10.8) / 0.85);
 
+        if (est20.Leistung && bodyMass) {
+            const ftpCalc = 0.95 * est20.Leistung;
+            setFtpWkg(Number((ftpCalc / bodyMass).toFixed(2)));
+        }
+
+        if (est5.Leistung && bodyMass) {
+            setVo2max(Number((est5.Leistung / bodyMass).toFixed(2)));
+        }
+
+
 
     };
 
     return (
-        <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
-            <Paper sx={{ p: 3, mb: 2 }}>
-                <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
-                    <Typography variant="h4">PowerChartAI</Typography>
-                    <Button
-                        variant="outlined"
-                        size="small"
-                        onClick={handleLogout}
-                        sx={{
-                            textTransform: 'none',
-                            borderColor: '#ccc',
-                            color: '#555',
-                            '&:hover': {
-                                borderColor: '#888',
-                                backgroundColor: '#f5f5f5',
-                            },
-                        }}
-                    >
+        <Container maxWidth="xl" sx={{ py: 1 }}>
+        <AppBar position="static" color="transparent" elevation={0}>
+            <Toolbar sx={{ justifyContent: "space-between" }}>
+                <Typography variant="h5" fontWeight="bold">PowerChartAI</Typography>
+
+                <Box sx={{ display: "flex", gap: 2 }}>
+                    <Button onClick={handleLogout} variant="outlined" size="small">
                         Logout
                     </Button>
+                    <Button onClick={handleSavePerformance} variant="outlined" size="small">
+                        Add to Database
+                    </Button>
                 </Box>
+            </Toolbar>
 
-                <Grid container spacing={4}>
-                    <Grid item xs={12} md={6}>
+        </AppBar>
+
+            <Grid container alignItems="stretch" spacing={3 }  sx={{ mt: 2 }}>
+                {/* Eingabe */}
+                <Grid item xs={12} md={6}>
+                    <Paper elevation={3} sx={{ p: 3 }}>
                         <Typography variant="h6" gutterBottom>Eingabe</Typography>
                         <CalculatorForm
                             bodyMass={bodyMass}
@@ -275,10 +268,13 @@ export default function App() {
                             onFileUpload={handleTcxUpload}
                             onExport={() => {}}
                         />
-                    </Grid>
+                    </Paper>
+                </Grid>
 
-                    <Grid item xs={12} md={6}>
-                        <Typography variant="h6" gutterBottom>Auswertung</Typography>
+                {/* Auswertung */}
+                <Grid item xs={12} md={6}>
+                    <Paper elevation={3} sx={{ p: 3 }}>
+                        <Typography variant="h6" gutterBottom>Nachberechnete Leistung</Typography>
                         <ResultsDisplay
                             measured5={measured5}
                             measured20={measured20}
@@ -287,20 +283,42 @@ export default function App() {
                             bodyMass={bodyMass}
                         />
                         {vo2max !== null && (
-                            <Typography variant="body1">
+                            <Typography variant="body2" sx={{ mt: 2 }}>
                                 Geschätzter VO₂max: {vo2max.toFixed(1)} ml/min/kg
                             </Typography>
                         )}
-
-
-                        {ftp !== null && (
-                            <Box mt={4}>
-                                <ZoneTable ftp={ftp} />
-                            </Box>
-                        )}
-                    </Grid>
+                    </Paper>
                 </Grid>
-            </Paper>
+
+                {/* Unten: Leistungszonen + Power Profiling */}
+                <Grid item xs={12} md={6}>
+                    {ftp && (
+                        <Paper elevation={3} sx={{ p: 3 }}>
+                            <Typography variant="h6" gutterBottom>🚴‍♂️ Trainingszonen</Typography>
+                            <ZoneTable ftp={ftp} />
+                        </Paper>
+                    )}
+                </Grid>
+
+                <Grid item xs={12} md={6}>
+                    {ftpWkg && estimated5 && (
+                        <Paper elevation={3} sx={{ p: 3 }}>
+                            <Typography variant="h6" gutterBottom>📊 Power Profil Analyse</Typography>
+                            <PowerComparisonChart
+                                ftp={ftpWkg}
+                                min5={Number((estimated5 / bodyMass).toFixed(2))}
+                            />
+                            <Box mt={3}>
+                                <PowerLevelText
+                                    ftp={ftpWkg}
+                                    min5={Number((estimated5 / bodyMass).toFixed(2))}
+                                />
+                            </Box>
+                        </Paper>
+                    )}
+                </Grid>
+            </Grid>
         </Container>
+
     );
 }

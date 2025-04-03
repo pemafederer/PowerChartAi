@@ -111,7 +111,7 @@ export async function getElevationGainFromGoogle(coords: [number, number][]): Pr
     const elevationEnd = data.results[data.results.length - 1].elevation;
     const gain = Math.max(0, elevationEnd - elevationStart);
 
-    return Math.round(gain); // ODER gainClassic → je nachdem, was du willst
+    return Math.round(gain);
 
 }
 

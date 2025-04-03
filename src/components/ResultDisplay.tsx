@@ -30,14 +30,14 @@ export default function ResultsDisplay({
         <>
             <Typography variant="subtitle1" fontWeight="bold">{label}</Typography>
             <Typography>
-                Gemessen: {measured?.toFixed(0) || "-"} W ({measured ? (measured / bodyMass).toFixed(1) : "-"} W/kg)
+                Gemessen: {measured?.toFixed(0) || "-"} W ({measured ? (measured / bodyMass).toFixed(2) : "-"} W/kg)
             </Typography>
             <Typography>
-                Nachberechnet: {estimated?.toFixed(0) || "-"} W ({estimated ? (estimated / bodyMass).toFixed(1) : "-"} W/kg)
+                Nachberechnet: {estimated?.toFixed(0) || "-"} W ({estimated ? (estimated / bodyMass).toFixed(2) : "-"} W/kg)
             </Typography>
             {distance !== undefined && (
                 <Typography variant="body2" color="textSecondary">
-                    Distanz: {distance.toFixed(1)} m
+                    Distanz: {distance.toFixed(2)} m
                 </Typography>
             )}
             <Divider style={{ margin: "1rem 0" }} />
