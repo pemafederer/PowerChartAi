@@ -1,6 +1,10 @@
 
 import React from "react";
-import { Button, TextField, Typography } from "@mui/material";
+import { Button, TextField } from "@mui/material";
+import { DatePicker } from '@mui/x-date-pickers/DatePicker';
+
+
+
 
 interface Props {
     bodyMass: number;
@@ -9,6 +13,7 @@ interface Props {
     bodyHeight: number;
     cr: number;
     alpha: number;
+    date: Date;
     onBodyMassChange: (value: number) => void;
     onBikeMassChange: (value: number) => void;
     onTemperatureChange: (value: number) => void;
@@ -16,6 +21,7 @@ interface Props {
     onCrChange: (value: number) => void;
     onAlphaChange: (value: number) => void;
     onFileUpload: (e: React.ChangeEvent<HTMLInputElement>) => void;
+    onDateChange: (value: Date) => void;
     onExport: () => void;
 }
 
@@ -24,12 +30,14 @@ export default function CalculatorForm({
                                            bikeMass,
                                            temperature,
                                            bodyHeight,
+                                           date,
                                            onBodyMassChange,
                                            onBikeMassChange,
                                            onBodyHeightChange,
                                            onTemperatureChange,
                                            onFileUpload,
                                            onExport,
+                                            onDateChange,
                                        }: Props) {
     return (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
@@ -56,6 +64,12 @@ export default function CalculatorForm({
                 type="number"
                 value={temperature}
                 onChange={(e) => onTemperatureChange(parseFloat(e.target.value))}
+            />
+            <DatePicker
+                label="Datum "
+                value={date}
+                onChange={(newDate) => newDate && onDateChange(newDate)}
+                format="dd.MM.yyyy"
             />
             <Button variant="outlined" component="label">
                 TCX-Datei hochladen
