@@ -1,5 +1,5 @@
 
-import React, { useState , useEffect} from "react";
+import React, {useState, useEffect, useCallback, useMemo} from "react";
 import {AppBar, Box, Button, Container, Grid, Paper, Toolbar, Typography,  FormControl, InputLabel, MenuItem, Select } from "@mui/material";
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
 import { Tooltip, IconButton } from '@mui/material';
@@ -11,13 +11,14 @@ import ResultsDisplay from "./components/ResultDisplay";
 import {calculatePower} from "./components/CalculatePower";
 import {getElevationGainFromGoogle } from "./components/ElevationAPI";
 import { getDistanceFromGoogleProxy} from "./components/ElevationAPI";
-import {PowerComparisonChart} from "./components/PowerComparisonChart";
-import {PowerLevelText} from "./components/PowerLevelText";
-import {ZoneTable} from "./components/PowerZones";
 import AuthForm from "./components/Authform";
 import ProgressChart from "./components/ProgressChart";
 import {supabase} from "./components/SupabaseClient";
 import {Session} from '@supabase/supabase-js';
+import html2pdf from 'html2pdf.js';
+import {TrainingZonesBlock, PowerProfileBlock} from "./components/DashboardSections";
+
+
 
 
 export default function App() {
@@ -26,6 +27,7 @@ export default function App() {
     const [temperature, setTemperature] = useState(1);
     const [bodyHeight, setBodyHeight] = useState(182);
     const [date, setDate] = useState<Date>(new Date());
+
 
     const [cr, setCr] = useState(0.007);
     const [measured5, setMeasured5] = useState<number | null>(null);
@@ -38,11 +40,32 @@ export default function App() {
 
     const [session, setSession] = useState<Session | null>(null);
 
-    const handleLogout = async () => {
+    const handleLogout = useCallback(async () => {
         await supabase.auth.signOut();
         setSession(null);
-    }
-    const handleSavePerformance = async () => {
+    }, []);
+
+    const handleExport = useMemo(() => {
+        return () => {
+            const element = document.getElementById('pdf-export-target');
+            if (!element) return;
+
+            html2pdf()
+                .set({
+                    margin: [0.5, 0.5, 0.5, 0.5],
+                    filename: `Leistungsbericht_${date.toISOString().split('T')[0]}.pdf`,
+                    image: {type: 'jpeg', quality: 1},
+                    html2canvas: {scale: 3, scrollY: 0}, // high res
+                    jsPDF: {unit: 'in', format: 'a4', orientation: 'portrait'}
+                })
+                .from(element)
+                .save();
+        };
+    }, []);
+
+
+
+    const handleSavePerformance = useCallback(async () => {
         if (
             !session ||
             !ftp ||
@@ -78,7 +101,7 @@ export default function App() {
         } else {
             alert("Leistung erfolgreich gespeichert ✅");
         }
-    };
+    }, [session, ftp, ftpWkg, vo2max, estimated5, estimated20, measured5, measured20, bodyMass, date]);
 
 
     const [history, setHistory] = useState<any[]>([]);
@@ -129,22 +152,18 @@ export default function App() {
         };
     }, []);
 
-    if (loadingSession) return null; // Oder Spinner, falls du willst
-
-    if (!session) return <AuthForm />;
 
 
-
-    const downsampleCoords = (coords: [number, number][], maxPoints = 99): [number, number][] => {
+    const downsampleCoords = useCallback((coords: [number, number][], maxPoints = 99): [number, number][] => {
         if (coords.length <= maxPoints) return coords;
 
         const step = Math.ceil(coords.length / maxPoints);
         return coords.filter((_, idx) => idx % step === 0);
-    };
+    }, []);
 
 
 
-    const handleTcxUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const handleTcxUpload = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (!file) return;
 
@@ -270,16 +289,23 @@ export default function App() {
         if (est20.Leistung && bodyMass) {
             const ftpCalc = 0.95 * est20.Leistung;
             setFtpWkg(Number((ftpCalc / bodyMass).toFixed(2)));
+            setVo2max(((est5.Leistung / bodyMass) * 10.8) / 0.85);
         }
 
         if (est5.Leistung && bodyMass) {
             setVo2max(Number((est5.Leistung / bodyMass).toFixed(2)));
+            setVo2max(((est5.Leistung / bodyMass) * 10.8) / 0.85);
         }
 
 
 
-    };
+    }, [bodyMass, bikeMass, cr, temperature, bodyHeight, downsampleCoords]);
 
+
+
+    if (loadingSession) return null; // Oder Spinner, falls du willst
+
+    if (!session) return <AuthForm />;
     return (
         <LocalizationProvider dateAdapter={AdapterDateFns}>
             <Container maxWidth="xl" sx={{ py: 1 }}>
@@ -288,14 +314,15 @@ export default function App() {
                         <Typography variant="h5" fontWeight="bold">PowerChartAI</Typography>
                         <Box sx={{ display: "flex", gap: 2 }}>
                             <Button onClick={handleLogout} variant="outlined" size="small">Logout</Button>
-                            <Tooltip title="Speichert diesen Leistungstest inkl. VO₂max, FTP und Power-Werten in deiner Datenbank." arrow>
-                                <Button onClick={handleSavePerformance} variant="outlined" size="small">Add to Database</Button>
+
+                                <Tooltip title="Speichert diesen Leistungstest inkl. VO₂max, FTP und Power-Werten in deiner Datenbank." arrow>
+                                <Button onClick={handleSavePerformance} variant="outlined" size="small"  disabled={selectedLog != null} >Add to Database </Button>
                             </Tooltip>
 
                         </Box>
                     </Toolbar>
                 </AppBar>
-
+                <div id="pdf-export-target">
                 <Grid container alignItems="stretch" spacing={3} sx={{ mt: 2 }}>
                     <Grid item xs={12} md={6}>
                         <Paper elevation={3} sx={{ p: 3 }}>
@@ -316,7 +343,7 @@ export default function App() {
                                 onCrChange={setCr}
                                 onAlphaChange={() => {}}
                                 onFileUpload={handleTcxUpload}
-                                onExport={() => {}}
+                                onExport={handleExport}
                             />
                         </Paper>
                     </Grid>
@@ -326,7 +353,7 @@ export default function App() {
                             <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 2 }}>
                                 <Typography variant="h6" gutterBottom> ⚡ Nachberechnete Leistung </Typography>
                                 <FormControl size="small" sx={{ minWidth: 200 }}>
-                                    <InputLabel id="select-log-label">Vergangener Test</InputLabel>
+                                    <InputLabel id="select-log-label">Test auswählen</InputLabel>
                                     <Select
                                         labelId="select-log-label"
                                         value={selectedLog?.id || ""}
@@ -373,79 +400,30 @@ export default function App() {
                         </Paper>
                     </Grid>
 
-
-                    {!selectedLog && ftp && (
-                        <Grid item xs={12} md={6}>
-                            <Paper elevation={3} sx={{ p: 3 }}>
-                                <Typography variant="h6" gutterBottom>
-                                    🚴‍♂️ Trainingszonen{" "}
-                                    <Tooltip title="Trainingszonen auf Basis deines FTP – z.B. Erholung, GA1, Schwelle etc." arrow>
-                                        <IconButton size="small">
-                                            <InfoOutlinedIcon fontSize="small" />
-                                        </IconButton>
-                                    </Tooltip>
-                                </Typography>
-                                <ZoneTable ftp={ftp} />
-                            </Paper>
-
-
-                        </Grid>
-                    )}
-
+                    {!selectedLog && ftp && <TrainingZonesBlock ftp={ftp} />}
                     {!selectedLog && ftpWkg && estimated5 && (
-                        <Grid item xs={12} md={6}>
-                            <Paper elevation={3} sx={{ p: 3 }}>
-                                <Typography variant="h6" gutterBottom>📊 Power Profil Analyse</Typography>
-                                <Tooltip title="Zeigt die gemessenen & berechneten Leistungsdaten des gewählten Tests an." arrow>
-                                    <IconButton size="small">
-                                        <InfoOutlinedIcon fontSize="small" />
-                                    </IconButton>
-                                </Tooltip>
-                                <PowerComparisonChart
-                                    ftp={ftpWkg}
-                                    min5={Number((estimated5 / bodyMass).toFixed(2))}
-                                />
-                                <Box mt={3}>
-                                    <PowerLevelText
-                                        ftp={ftpWkg}
-                                        min5={Number((estimated5 / bodyMass).toFixed(2))}
-                                    />
-                                </Box>
-                            </Paper>
-                        </Grid>
+                        <PowerProfileBlock
+                            ftpWkg={ftpWkg}
+                            min5={Number((estimated5 / bodyMass).toFixed(2))}
+                        />
                     )}
 
                     {selectedLog && (
-                        <Grid item xs={12} md={6}>
-                            <Paper elevation={3} sx={{ p: 3 }}>
-                                <ZoneTable ftp={selectedLog.ftp} />
-                            </Paper>
-                        </Grid>
+                        <>
+                            <TrainingZonesBlock ftp={selectedLog.ftp} />
+                            <PowerProfileBlock
+                                ftpWkg={selectedLog.ftp_wkg}
+                                min5={Number((selectedLog.power_5min / selectedLog.body_mass).toFixed(2))}
+                                label="📊 Power Profil Analyse (Ausgewählter Test)"
+                            />
+                        </>
                     )}
-                    {selectedLog && (
-                        <Grid item xs={12} md={6}>
-                            <Paper elevation={3} sx={{ p: 3 }}>
-                                <Typography variant="h6" gutterBottom>📊 Power Profil Analyse (Ausgewählter Test)</Typography>
-                                <PowerComparisonChart
-                                    ftp={selectedLog.ftp_wkg}
-                                    min5={Number((selectedLog.power_5min / selectedLog.body_mass).toFixed(2))}
-                                />
-                                <Box mt={3}>
-                                    <PowerLevelText
-                                        ftp={selectedLog.ftp_wkg}
-                                        min5={Number((selectedLog.power_5min / selectedLog.body_mass).toFixed(2))}
-                                    />
-                                </Box>
-                            </Paper>
-                        </Grid>
-                    )}
-
 
                     <Grid item xs={12}>
                         <Paper elevation={3} sx={{ p: 3 }}>
                             <Typography variant="h6" gutterBottom>
                                 📈 Fortschritt zwischen den Leistungsstests{" "}
-                                <Tooltip title="Zeigt deine Entwicklung bei FTP- und 5min-Leistungen über Zeit (W/kg)." arrow>
+                                <Tooltip title="Zeigt deine Entwicklung bei FTP- und 5min-Leistungen über Zeit (W/kg)."  placement={"right-start"} arrow>
                                     <IconButton size="small">
                                         <InfoOutlinedIcon fontSize="small" />
                                     </IconButton>
@@ -455,6 +433,7 @@ export default function App() {
                         </Paper>
                     </Grid>
                 </Grid>
+                </div>
             </Container>
         </LocalizationProvider>
     );
