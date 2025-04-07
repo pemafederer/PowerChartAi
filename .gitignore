@@ -1,6 +1,28 @@
-# .gitignore
+# === Node.js / Vite ===
 node_modules/
 dist/
+.vite/
+
+# === Env-Dateien ===
 .env
-.env.*
+.env.*           # .env.local, .env.production, ...
+
+# === Logs ===
+npm-debug.log*
+pnpm-debug.log*
+yarn-debug.log*
+
+# === macOS ===
+.DS_Store
+
+# === WebStorm / JetBrains ===
 .idea/
+
+# === TypeScript ===
+*.tsbuildinfo
+
+# === Output ===
+*.log
+
+# === System ===
+Thumbs.db
